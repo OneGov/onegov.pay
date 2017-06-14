@@ -10,6 +10,7 @@ from onegov.core.orm.mixins import meta_property
 from onegov.pay import log
 from onegov.pay.models.payment import Payment
 from onegov.pay.models.payment_provider import PaymentProvider
+from purl import URL
 from sqlalchemy.orm import object_session
 from uuid import UUID, uuid4, uuid5
 
@@ -276,15 +277,22 @@ class StripeConnect(PaymentProvider):
                         **extra):
         """ Generates the html for the checkout button. """
 
+        # XXX make configurable
+        extra['country'] = 'CH'
+
         extra['amount'] = round(amount * 100, 0)
         extra['currency'] = currency
         extra['key'] = self.publishable_key
+        extra['account'] = self.user_id
 
         attrs = {
             'data-stripe-{}'.format(key): str(value)
             for key, value in extra.items()
         }
         attrs['data-action'] = action
+
+        if 'locale' in extra:
+            attrs['lang'] = extra['locale']
 
         return """
             <input type="hidden" name="payment_token" id="{target}">
@@ -343,7 +351,7 @@ class StripeConnect(PaymentProvider):
             user_fields=user_fields
         )
 
-    def process_oauth_response(self, request_params):
+    def process_oauth_response(self, request_url, request_params):
         """ Takes the parameters of an incoming oauth request and stores
         them on the payment provider if successful.
 
@@ -363,6 +371,10 @@ class StripeConnect(PaymentProvider):
             token = stripe.OAuth.token(
                 grant_type='authorization_code',
                 code=self.authorization_code,
+            )
+            response = stripe.ApplePayDomain.create(
+                domain_name=URL(request_url).host(),
+                stripe_account=token['stripe_user_id']
             )
 
         assert token['scope'] == 'read_write'

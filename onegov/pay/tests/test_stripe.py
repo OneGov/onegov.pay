@@ -38,6 +38,7 @@ def test_process_oauth_response():
 
     with pytest.raises(RuntimeError) as e:
         provider.process_oauth_response(
+            'https://example.org',
             {
                 'error': 'foo',
                 'error_description': 'bar',
@@ -53,15 +54,19 @@ def test_process_oauth_response():
         'refresh_token': 'rtoken',
         'access_token': 'atoken',
     }):
-        provider.process_oauth_response({
-            'code': '0xdeadbeef',
-            'oauth_redirect_secret': 'foo'
-        })
+        with mock.patch('stripe.ApplePayDomain.create', return_value=None):
+            provider.process_oauth_response(
+                'https://example.org',
+                {
+                    'code': '0xdeadbeef',
+                    'oauth_redirect_secret': 'foo'
+                }
+            )
 
-        assert provider.publishable_key == 'pubkey'
-        assert provider.user_id == 'uid'
-        assert provider.refresh_token == 'rtoken'
-        assert provider.access_token == 'atoken'
+    assert provider.publishable_key == 'pubkey'
+    assert provider.user_id == 'uid'
+    assert provider.refresh_token == 'rtoken'
+    assert provider.access_token == 'atoken'
 
 
 def test_stripe_fee_policy():

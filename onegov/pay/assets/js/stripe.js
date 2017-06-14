@@ -53,6 +53,61 @@ var handleToken = function(token, button) {
     }
 };
 
+var useApplePay = function() {
+    if (window.location.hash === '#applepay') {
+        return true;
+    }
+
+    try {
+        return ApplePaySession && ApplePaySession.canMakePayments();
+    } catch (e) {
+        return false;
+    }
+
+};
+
+var convertToApplePayButton = function(button) {
+    button.innerHTML = '';
+    button.className += ' apple-pay-button';
+};
+
+var newApplePayHandler = function(config) {
+    return function(e) {
+        e.preventDefault();
+
+        var payment = {
+            countryCode: config.country,
+            currencyCode: config.currency,
+            total: {
+                label: config.description,
+                amount: parseFloat(config.amount / 100).toFixed(2)
+            }
+        };
+
+        Stripe.setPublishableKey(config.key);
+
+        var session = Stripe.applePay.buildSession(payment, function(result, completion) {
+            config.token(result.token);
+
+            // XXX
+            // we don't know yet if the payment will succeed, therefore we have
+            // to do everything on the backend before showing the result
+            // -> unfortunately this pretty much goes against the way we use
+            // stripe, so for now we can't support apple pay
+            completion(ApplePaySession.STATUS_SUCCESS);
+        });
+
+        session.begin();
+    };
+};
+
+var newStripePaymentHandler = function(config) {
+    return function(e) {
+        e.preventDefault();
+        StripeCheckout.configure(config).open();
+    };
+};
+
 var setupCheckoutButton = function(button) {
     var config = {
         token: function(token) {
@@ -66,11 +121,16 @@ var setupCheckoutButton = function(button) {
         config[attribute.name.replace('data-stripe-', '')] = attribute.value;
     }
 
-    var handler = StripeCheckout.configure(config);
-    button.addEventListener('click', function(e) {
-        handler.open();
-        e.preventDefault();
-    });
+    var onClick = null;
+
+    if (useApplePay()) {
+        convertToApplePayButton(button);
+        onClick = newApplePayHandler(config);
+    } else {
+        onClick = newStripePaymentHandler(config);
+    }
+
+    button.addEventListener('click', onClick);
 
     // close checkout on page navigation
     window.addEventListener('popstate', function() {
@@ -79,10 +139,12 @@ var setupCheckoutButton = function(button) {
 };
 
 var setupCheckout = function(buttons) {
-    loadScript('https://checkout.stripe.com/checkout.js', function() {
-        for (var i = 0; i < buttons.length; i++) {
-            setupCheckoutButton(buttons[i]);
-        }
+    loadScript('https://js.stripe.com/v2/', function() {
+        loadScript('https://checkout.stripe.com/checkout.js', function() {
+            for (var i = 0; i < buttons.length; i++) {
+                setupCheckoutButton(buttons[i]);
+            }
+        });
     });
 };
 

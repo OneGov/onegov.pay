@@ -1,5 +1,6 @@
 from more.webassets import WebassetsApp
 from onegov.core.orm import orm_cached
+from onegov.core.utils import module_path, render_file
 from onegov.pay import log
 from onegov.pay import PaymentProvider
 from onegov.pay.errors import CARD_ERRORS
@@ -50,6 +51,17 @@ def get_js_path():
 @PayApp.webasset('pay')
 def get_pay_assets():
     yield 'stripe.js'
+
+
+@PayApp.path(path='/.well-known/apple-developer-merchantid-domain-association')
+class ApplePayMerchantIdDomainAssociation(object):
+    path = module_path(
+        'onegov.pay', 'static/apple-developer-merchantid-domain-association')
+
+
+@PayApp.view(model=ApplePayMerchantIdDomainAssociation, render=render_file)
+def view_apple_pay_merchant_id_domain_association(self, app):
+    return self.path
 
 
 def process_payment(method, price, provider=None, token=None):
